@@ -10,7 +10,6 @@ classdef DataPreprocessing
         %     % obj.applied_current = obj.compute_applied_current(input_current, obj.input_time, obj.timeVector);
         % end 
 
-
         function applied_current = preprocessCurrent(battery, applied_current, C_rate, cycle_startmode)
             timeFinal = battery.SimulationParams.timeFinal;
             timeStep = battery.SimulationParams.timeStep;

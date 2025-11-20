@@ -78,7 +78,7 @@ function simulation(model, ...
     switch model
         case "ESPM"
             ESPM.ESPMinitialParameters(battery, applied_current, working_electrode, timeStep, temperature);
-            ESPMsimulation.runESPMsimulation(battery, battery.preComputedMatrix, applied_current, timeSize, timeStep);
+            ESPMsimulation.runESPMsimulation(battery, battery.preComputedMatrix, applied_current, timeSize, timeFinal, timeStep);
     end
 
 end

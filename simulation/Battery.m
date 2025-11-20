@@ -10,7 +10,6 @@ classdef Battery < handle
         ElectricalParams
         ThermalParams
         SimulationParams
-        AgingParams
         preComputedMatrix
     end
 

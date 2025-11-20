@@ -94,6 +94,7 @@ for i = 1:length(frequencies)
 
     % Compute impedance
     impedance_tmp = voltage_fft(idx) / current_fft(idx);
+    
    
 end
 

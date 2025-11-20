@@ -48,7 +48,6 @@ classdef KineticParametersCalculator
         %% -------------------------- Molar Ionic Flux Best Best ------------------------- %%
         function molar_ionic_flux = compute_molar_ionic_flux(~, battery, ...
                                                            applied_current, ...
-                                                           specific_interfacial_surface_area, ...
                                                            electrode)
 
             % Prefix for electrodes ('neg', 'pos')
@@ -60,6 +59,8 @@ classdef KineticParametersCalculator
 
             surface_area = Geom.cell.('surface_area_cell');
             thickness = Geom.electrode.(electrode).(['thickness_' prefix]);
+
+            specific_interfacial_surface_area = Geom.electrode.(electrode).particles.(['specific_interfacial_surface_area_' prefix]);
 
             denominator = surface_area * thickness * specific_interfacial_surface_area;
 

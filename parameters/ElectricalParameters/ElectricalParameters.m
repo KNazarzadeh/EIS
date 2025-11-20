@@ -32,11 +32,12 @@ classdef ElectricalParameters
              ElecCell.OCV_max] = calculator.compute_ocv_range(battery);
 
             ElecCell.SOC_initial = calculator.compute_initial_SOC(battery);
+            ElecCell.SOC(1) = ElecCell.SOC_initial;
             % -------- Full-cell voltage ----------------------------------------
             ElecCell.battery_capacity_cell(1, 1) = ...
                 calculator.compute_battery_capacity(battery);
 
-            ElecCell.voltage(1) = calculator.compute_cell_voltage(battery, applied_current, 0);
+            ElecCell.voltage(1) = calculator.compute_cell_voltage(battery, applied_current(1), 0);
                 
                 battery.ElectricalParams.cell = ElecCell;
             

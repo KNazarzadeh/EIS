@@ -10,7 +10,7 @@ classdef ESPMsimulation
     
     methods(Static)
         %% ESPM Simulation Full-Cell Analysis
-        function battery = runESPMsimulation(battery, PreComPM, applied_current, timeSize, timeStep)
+        function battery = runESPMsimulation(battery, PreComPM, applied_current, timeSize, timeFinal, timeStep)
            
             % ============================
             % === 1) One-time setup  ====
@@ -21,9 +21,8 @@ classdef ESPMsimulation
             % =====================================
             time = 1;
             timeVector = zeros(timeSize,1);
-            simulationEnd = 0;
 
-            for nsteps = SimulationParams.timeStep:SimulationParams.timeStep:SimulationParams.timeFinal
+            for nsteps = timeStep:timeStep:timeFinal
                 battery = ESPMsimulation.updateElectrodeParams(battery, "negative", ...                    
                     applied_current(time+1), PreComPM, time);
 
@@ -35,10 +34,10 @@ classdef ESPMsimulation
                 battery = ESPMsimulation.updateRestElectrodeParams(battery, "negative", time);
                 battery = ESPMsimulation.updateRestElectrodeParams(battery, "positive", time);
 
-
-                battery = updateCell(battery, applied_current, timeStep, time);
+                battery = ESPMsimulation.updateCell(battery, applied_current(time+1), timeStep, time);
 
                 % ========= Termination Conditions ==========
+                fprintf('time=%.3fs | V=%.4f V\n', time, battery.ElectricalParams.cell.('voltage')(time+1, :));
                 if battery.ElectricalParams.cell.('voltage')(time+1, :) < battery.ElectricalParams.cell.('lower_voltage_cell') || ...
                         battery.ElectricalParams.cell.('voltage')(time+1, :) > battery.ElectricalParams.cell.('upper_voltage_cell')
                     break;
@@ -47,7 +46,7 @@ classdef ESPMsimulation
                     break;
                 end
 
-                if simulationEnd || time >= timeSize-1 || time >= length(applied_current), break; end
+                if time >= timeSize-1 || time >= length(applied_current), break; end
 
                 timeVector(time+1, :) = timeVector(time, :) + timeStep;
                 time = time + 1;
@@ -73,7 +72,6 @@ classdef ESPMsimulation
             % Compute molar ionic flux                 
             battery.KineticParams.electrode.(electrode).(['molar_ionic_flux_' prefix])(time+1, :) = ESPMsimulation.calcKin.compute_molar_ionic_flux( ...
                 battery, applied_current, ...
-                battery.GeometricParams.electrode.(electrode).particles.(['specific_interfacial_surface_area_' prefix])(time+1), ...
                 electrode);           
 
             % Compute electrode concentration
@@ -151,7 +149,8 @@ classdef ESPMsimulation
         %% Helper function for Electrode Parameters Update
         function battery = updateRestElectrodeParams(battery, electrode, time)
 
-            sei_film_resistance = battery.ElectricalParams.electrode.(electrode).(['sei_film_resistance_' prefix])(time+1);
+            prefix = electrode{1}(1:3);
+            sei_film_resistance = battery.ElectricalParams.electrode.(electrode).(['sei_film_resistance_' prefix]);
             
             battery.KineticParams.electrode.(electrode).(['exchange_current_density_' prefix])(time+1, :) = ...
                 ESPMsimulation.calcKin.compute_exchange_current_density(battery, ...
@@ -181,11 +180,10 @@ classdef ESPMsimulation
                     applied_current, time);
     
                 % ========== Update SOC
-                battery.ElectricalParams.cell.SOC(time+1, :) = ESPMsimulation.calcElec.compute_SOC(battery, ...
+                battery.ElectricalParams.cell.SOC(time+1, :) = ESPMsimulation.calcElec.compute_SOC( ...
                     applied_current, ...
                     battery.ElectricalParams.cell.SOC(time), ...
                     battery.ElectricalParams.cell.battery_capacity_cell, timeStep);
-
         end
      
     end
