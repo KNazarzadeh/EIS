@@ -35,8 +35,7 @@ numFreqPoints = 65;   % Number of frequency points
 I_app_amplitude = 0.05;           % Applied current amplitude [A]
 
 samples_per_period = 100;         % Number of time points per period
-num_periods_total  = 40;          % total periods per frequency
-num_periods= 10;          % use only last 10 for FFT
+num_periods= 10;                  % use only last 10 for FFT
 
 % ------------------------------------------------
 frequencies = logspace(log10(freq_min), log10(freq_max), numFreqPoints);  % descending order
