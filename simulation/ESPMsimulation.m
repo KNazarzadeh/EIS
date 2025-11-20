@@ -6,13 +6,11 @@ classdef ESPMsimulation
         calcKin    = KineticParametersCalculator();
         calcTherm  = ThermodynamicParametersCalculator();        
         calcElec   = ElectricalParametersCalculator();
-        % UpdateParameters = UpdateParameters();
     end
     
     methods(Static)
         %% ESPM Simulation Full-Cell Analysis
-        function battery = runESPMsimulation(battery, PreComPM, applied_current, cycleNum, isCCCV, ...
-                current_cutoff, timeSize, timeStep, parallelCellNum)
+        function battery = runESPMsimulation(battery, PreComPM, applied_current, timeSize, timeStep)
            
             % ============================
             % === 1) One-time setup  ====
@@ -26,13 +24,6 @@ classdef ESPMsimulation
             simulationEnd = 0;
 
             while simulationEnd ~= 1
-                % ---- current update (optional CCCV) ----
-                if isCCCV
-                    [~, applied_current(time+1, :), simulationEnd] = CC_CV( battery, time, ...
-                        applied_current(time), battery.ElectricalParams.cell.voltage(time, :), parallelCellNum);
-                    if simulationEnd, break; end
-                end
-
                 battery = ESPMsimulation.updateNegativeElectrodeParams(battery, "negative", ...                    
                     applied_current(time+1), PreComPM, timeStep, time);
 
@@ -41,26 +32,12 @@ classdef ESPMsimulation
                 
                 battery = ESPMsimulation.updateElectrolyteParams(battery, PreComPM, time);
 
-                battery = ESPMsimulation.updateAgingSEIParams(battery, timeStep, time);
-
-                battery = ESPMsimulation.updateNegativeAgingLAMParams(battery, "negative", timeStep, time);
-                battery = ESPMsimulation.updatePositiveAgingLAMParams(battery, "positive", timeStep, time);
-
                 battery = ESPMsimulation.updateRestNegativeElectrodeParams(battery, "negative", time);
                 battery = ESPMsimulation.updateRestPositiveElectrodeParams(battery, "positive", time);
-                
-                battery = ESPMsimulation.updateCellAgingParams(battery, applied_current(time+1), ...
-                    cycleNum, timeStep, time);
 
                 % ========= Termination Conditions ==========
                 if timeStep < 1e-60
                     break;
-                end
-
-                if battery.AgingParams.CCCVstatus == 2
-                    if applied_current == current_cutoff
-                        simulationEnd = 1;
-                    end
                 end
 
                 if simulationEnd || time >= timeSize-1 || time >= length(applied_current), break; end
@@ -70,29 +47,14 @@ classdef ESPMsimulation
 
             end
             
-            battery.SimulationParams.runtime(cycleNum, 1) = toc(t0);
+            battery.SimulationParams.runtime = toc(t0);
 
             battery.SimulationParams.timeVector = timeVector' ;
             battery.ElectricalParams.cell.applied_current = applied_current(2:end);
 
             % Compute cell capacity for full simulation
              battery.ElectricalParams.cell.cell_capacity = ...
-                  ESPMsimulation.calcElec.compute_Cell_Capacity( ...
-                    battery.ElectricalParams.cell.SOC, ...
-                    battery.ElectricalParams.cell.battery_capacity_cell(cycleNum, 1), ...
-                    battery.ElectricalParams.cell.total_capacityLoss);
-
-             battery_capacity_cell = battery.ElectricalParams.cell.battery_capacity_cell;
-             if battery_capacity_cell(end) > (0.5 * battery_capacity_cell(1))
-                 [sto_0_neg, sto_100_neg, sto_0_pos, sto_100_pos] = ...
-                      ESPMsimulation.calcTherm.update_stoichiometry_levels(battery, ...
-                                battery.ElectricalParams.cell.total_capacityLoss(end));
-    
-                battery.ThermodynamicParams.electrode.negative.stoichiometry_at_0_soc_neg(cycleNum+1, 1) = sto_0_neg;
-                battery.ThermodynamicParams.electrode.negative.stoichiometry_at_100_soc_neg(cycleNum+1, 1) = sto_100_neg;
-                battery.ThermodynamicParams.electrode.positive.stoichiometry_at_0_soc_pos(cycleNum+1, 1) = sto_0_pos;
-                battery.ThermodynamicParams.electrode.positive.stoichiometry_at_100_soc_pos(cycleNum+1, 1) = sto_100_pos;
-             end
+                  ESPMsimulation.calcElec.compute_Cell_Capacity(battery);
         end
 
         %% Update Values of Parameters
@@ -256,73 +218,6 @@ classdef ESPMsimulation
                ESPMsimulation.calcTherm.compute_electrolyte_mean_potential(battery, ...
                battery.ThermodynamicParams.electrolyte.potential_elyte(:,time+1),"positive");
         end
-       
-
-        %% Helper function for Aging Parameters Update
-        function battery = updateAgingSEIParams(battery, timeStep, time)
-    
-            electrode = "negative";
-    
-            % SEI thickness increase
-            battery.GeometricParams.electrode.negative.SEI_inner_thickness_increased_neg(time+1, :) = ...
-                ESPMsimulation.calcGeom.compute_SEI_inner_thickness_increased( ...
-                battery, battery.KineticParams.electrode.negative.SEI_tunneling_reaction_rate_neg(time), ...
-                battery.GeometricParams.electrode.negative.sei_thickness_ratio_neg, timeStep);
-    
-            % Compute SEI thickness total
-            battery.GeometricParams.electrode.negative.SEI_inner_thickness_total_neg(time+1, :) = ...
-                ESPMsimulation.calcGeom.compute_SEI_inner_thickness_total( ...
-                    battery.GeometricParams.electrode.negative.SEI_inner_thickness_total_neg(time), ...
-                    battery.GeometricParams.electrode.negative.SEI_inner_thickness_increased_neg(time+1));
-    
-            % Compute SEI tunneling reaction rate
-            % Lithium loss due to SEI
-            battery.KineticParams.electrode.negative.SEI_tunneling_reaction_rate_neg(time+1, :) = ...
-                ESPMsimulation.calcKin.compute_SEI_electron_tunneling_rate( ...
-                battery, electrode, battery.ThermodynamicParams.electrode.negative.aging_stoichiometry_neg(time+1), ...
-                battery.GeometricParams.electrode.negative.SEI_inner_thickness_total_neg(time+1));
-    
-            % Compute Lithium Loss SEI Formation
-             battery.KineticParams.electrode.negative.Lithium_loss_SEI_formation_neg(time+1, :) = ...
-                 ESPMsimulation.calcKin.compute_Lithium_loss_SEI_formation( ...
-                 battery.KineticParams.electrode.negative.Lithium_loss_SEI_formation_neg(time), ...
-                 battery.GeometricParams.electrode.negative.particles.specific_interfacial_surface_area_neg(time+1), ...
-                 battery.KineticParams.electrode.negative.SEI_tunneling_reaction_rate_neg(time+1), timeStep);
-    
-            % Film resistance
-            battery.ElectricalParams.electrode.negative.sei_film_resistance_neg(time+1, :) = ...
-                ESPMsimulation.calcElec.compute_filmResistance(battery, ...
-                        battery.GeometricParams.electrode.negative.SEI_inner_thickness_total_neg(time+1), electrode);
-            
-            % Capacity loss components
-            battery.ElectricalParams.electrode.negative.capacityLossSEI_neg(time+1, :) = ...
-                ESPMsimulation.calcElec.calculate_capacityLoss_SEI(battery, ...
-                        battery.KineticParams.electrode.negative.Lithium_loss_SEI_formation_neg(time+1));
-        end
-
-        %% Helper function for Aging Parameters Update
-        function battery = updateNegativeAgingLAMParams(battery, electrode, timeStep, time)
-
-                 battery.ElectricalParams.electrode.negative.capacityLossLAM_neg(time+1, :) = ...
-                     ESPMsimulation.calcElec.calculate_capacityLoss_LAM(battery, ...
-                            battery.ElectricalParams.electrode.negative.capacityLossLAM_neg(time), ...
-                            battery.GeometricParams.electrode.negative.volumeFractionLAM_derivation_neg(time+1), ...
-                            battery.ThermodynamicParams.electrode.negative.aging_stoichiometry_neg(time+1), ...
-                            electrode, timeStep);
-        
-        end
-
-        %% Helper function for Aging Parameters Update
-        function battery = updatePositiveAgingLAMParams(battery, electrode, timeStep, time)
-
-                 battery.ElectricalParams.electrode.positive.capacityLossLAM_pos(time+1, :) = ...
-                     ESPMsimulation.calcElec.calculate_capacityLoss_LAM(battery, ...
-                            battery.ElectricalParams.electrode.positive.capacityLossLAM_pos(time), ...
-                            battery.GeometricParams.electrode.positive.volumeFractionLAM_derivation_pos(time+1), ...
-                            battery.ThermodynamicParams.electrode.positive.aging_stoichiometry_pos(time+1), ...
-                            electrode, timeStep);
-        
-        end
 
         %% Helper function for Electrode Parameters Update
         function battery = updateRestNegativeElectrodeParams(battery, electrode, time)
@@ -374,7 +269,7 @@ classdef ESPMsimulation
         end
         
         %% Helper function for Electrode Parameters Update
-        function battery = updateCellAgingParams(battery, applied_current, cycleNum, timeStep, time)
+        function battery = updateCell(battery, applied_current, cycleNum, timeStep, time)
             
                 % ========== Update Cell voltage
                 battery.ElectricalParams.cell.voltage(time+1, :) = ESPMsimulation.calcElec.compute_cell_voltage(battery, ...
@@ -384,15 +279,9 @@ classdef ESPMsimulation
                 battery.ElectricalParams.cell.SOC(time+1, :) = ESPMsimulation.calcElec.compute_SOC(battery, ...
                     applied_current, ...
                     battery.ElectricalParams.cell.SOC(time), ...
-                    battery.ElectricalParams.cell.battery_capacity_cell(cycleNum,1), cycleNum, timeStep, time);
-            
-                % ========== Update Cpacity Loss
-                battery.ElectricalParams.cell.total_capacityLoss(time+1, :) = ...
-                    ESPMsimulation.calcElec.compute_total_capacityLoss( ...
-                        battery.ElectricalParams.electrode.negative.capacityLossLAM_neg(time+1), ...
-                        battery.ElectricalParams.electrode.positive.capacityLossLAM_pos(time+1), ...
-                        battery.ElectricalParams.electrode.negative.capacityLossSEI_neg(time+1));
+                    battery.ElectricalParams.cell.battery_capacity_cell(cycleNum,1), timeStep);
+
         end
-        
+     
     end
 end

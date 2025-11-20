@@ -84,16 +84,11 @@ classdef ElectricalParametersCalculator
         end
         
         %% ------------------------ Cell Capacity --------------------------- %%
-        function cell_capacity = compute_Cell_Capacity(~, ...
-                SOC_previous, ...
-                battery_capacity_cell, ...
-                total_capacityLoss)
+        function cell_capacity = compute_Cell_Capacity(~, battery)
 
-            % cell_capacity  = abs(battery.ThermodynamicParams.cell.SOC - battery.ThermodynamicParams.cell.SOC(1)) * ...
-            %     (battery.ElectricalParams.cell.('battery_capacity_cell')(end) / 3600); 
-            
-            cell_capacity  = abs(SOC_previous * battery_capacity_cell - total_capacityLoss);
-            
+            cell_capacity  = abs(battery.ThermodynamicParams.cell.SOC - battery.ThermodynamicParams.cell.SOC(1)) * ...
+                (battery.ElectricalParams.cell.('battery_capacity_cell')(end) / 3600); 
+                        
             % Ah
             % cell_capacity_by_current = cumtrapz(battery.SimulationParams.timeVector, ...
             %     abs(applied_current))/3600;
