@@ -4,9 +4,13 @@ clc;
 % profile clear                              % reset old data
 % profile on -timer real                     % wall-clock timing (good default)
 %% Set Input file
-databasePath = "C:\Users\k.nazarzadeh\Projects\EIS";
+% databasePath = "C:\Users\k.nazarzadeh\Projects\EIS";
+databasePath = "U:\Battery_Experiment_Database\knazarzadeh\";
 
-inputFileName = "knazarzadeh_ESPM_Pouch_cells_EIS.xlsx";
+
+% inputFileName = "knazarzadeh_ESPM_Pouch_cells_EIS.xlsx";
+inputFileName = "knazarzadeh_Single_particle_ESPM.xlsx";
+
 %% Battery Parameters
 % Read Battery Parameters from Excel file
 batteryStruct = readExcel(fullfile(databasePath, inputFileName));
@@ -27,43 +31,46 @@ cell_analysis_mode = "full-cell";
 cycle_startmode = "discharge";
 
 %% Run Impedance
+% ---------------- User settings ----------------
 freq_min = 200e-6;    % 200 µHz
-freq_max = 1e3;       % 1000 Hz (1 kHz)
-
-numFreqPoints = 65;            % Number of frequency points
-
-frequencies = logspace(log10(freq_min), log10(freq_max), numFreqPoints);  % descending order
-% frequencies = flip(frequencies);  % optional: make it ascending
+freq_max = 1e3;       % 1 kHz
+numFreqPoints = 65;   % Number of frequency points
 
 I_app_amplitude = 0.05;           % Applied current amplitude [A]
 
 samples_per_period = 100;         % Number of time points per period
-num_periods = 10;                 % Number of periods to simulate
+num_periods_total  = 40;          % total periods per frequency
+num_periods= 10;          % use only last 10 for FFT
 
-% --- Output arrays ---
-impedance = zeros(length(frequencies), 1);
+% ------------------------------------------------
+frequencies = logspace(log10(freq_min), log10(freq_max), numFreqPoints);  % descending order
+% frequencies = flip(frequencies);  % optional: make it ascending
 
-num_periods_warmup = 5;      % simulate extra cycles, then keep last 10
+% ---------------- Output array ----------------
+impedance = zeros(numFreqPoints, 1);
 
-for i = 1:length(frequencies)
-    f = frequencies(i);
-    period = 1 / f;
-    dt = period / samples_per_period;
+voltage_vectors = zeros(1000, numFreqPoints);
+overpotential_negative_vectors = zeros(1000, numFreqPoints);
+overpotential_positive_vectors = zeros(1000, numFreqPoints);
+potential_negative_vectors = zeros(1000, numFreqPoints);
+potential_positive_vectors = zeros(1000, numFreqPoints);
+
+for k = 1:numFreqPoints
+    f = frequencies(k);
+    period = 1/f;
+    timeStep = period / samples_per_period;  % Time step size in seconds
     
-    t_eval = (0:(samples_per_period * num_periods) - 1) * dt;
-    
-    % Sinusoidal current
-    applied_current = I_app_amplitude * sin(2 * pi * f * t_eval).';
-    applied_current_vectors(:, i) = applied_current; % Cell array to store vectors
-    
-    % Simulation end time in seconds
-    % timeFinal = num_periods * period;
-    timeFinal = t_eval(end) + 10*eps(t_eval(end));
-    % timeFinal = t_eval(end);
-    % Time step size in seconds
-    timeStep = dt;
-    
-        % Run Simulation
+    % ---- time vector for the frequency ----
+    N_sample  = samples_per_period * num_periods;   % total samples
+    t_eval = (0:(N_sample) - 1) * timeStep;
+
+    % ---- sinusoidal current ----
+    applied_current = I_app_amplitude * sin(2*pi*f*t_eval).';
+        
+    % ---- run time-domain simulation ----
+    timeFinal = t_eval(end) + 10*eps(t_eval(end));  % just beyond last sample
+
+    % ---- Run Simulation ----
     simulation(model, ...
         battery, ...
         SOC_initial, ...
@@ -78,29 +85,75 @@ for i = 1:length(frequencies)
 
     % --- Get simulated voltage and align vectors ---
     voltage = battery.ElectricalParams.cell.voltage;
-    voltage_vectors(:, i) = voltage;
+    voltage_vectors(:, k) = voltage;
+
+    overpotential_negative = battery.ThermodynamicParams.electrode.negative.overpotential_neg;
+    overpotential_positive = battery.ThermodynamicParams.electrode.positive.overpotential_pos;
+    potential_negative = battery.ThermodynamicParams.electrode.negative.potential_neg;
+    potential_positive = battery.ThermodynamicParams.electrode.positive.potential_pos;
+
+    overpotential_negative_vectors(:, k) = overpotential_negative;
+    overpotential_positive_vectors(:, k) = overpotential_positive;
+    potential_negative_vectors(:, k) = potential_negative;
+    potential_positive_vectors(:, k) = potential_positive;
+
 
     num_points_last_three = 3 * samples_per_period + 1;
     start_idx = length(t_eval) - num_points_last_three + 1;
     current_last = applied_current(start_idx:end);
     voltage_last = voltage(start_idx:end);
 
+    overpotential_negative_last = overpotential_negative(start_idx:end);
+    overpotential_positive_last = overpotential_positive(start_idx:end);
+    potential_negative_last = potential_negative(start_idx:end);
+    potential_positive_last = potential_positive(start_idx:end);
+
     % Apply FFT to cell voltage
     voltage_fft = fft(voltage_last) / length(voltage_last);
     current_fft = fft(current_last) / length(current_last);
+
+    % Apply FFT to overpotential Negative
+    overpotential_negative_fft = fft(overpotential_negative_last) / length(overpotential_negative_last);
+    % Apply FFT to overpotential Psitive
+    overpotential_positive_fft = fft(overpotential_positive_last) / length(overpotential_positive_last);
+    % Apply FFT to potential Negative
+    potential_negative_fft = fft(potential_negative_last) / length(potential_negative_last);
+    % Apply FFT to potential Positive
+    potential_positive_fft = fft(potential_positive_last) / length(potential_positive_last);
+
 
     % Get first harmonic (frequency index ≈ 5th in this case)
     [~, idx] = max(abs(current_fft));  % peak at fundamental freq
 
     % Compute impedance
     impedance_tmp = voltage_fft(idx) / current_fft(idx);
-   
+    
+    impedance(k) = impedance_tmp;
+    impedance_negative_overpotential(k) = overpotential_negative_fft(idx) / current_fft(idx);
+    impedance_positive_overpotential(k) = overpotential_positive_fft(idx) / current_fft(idx);
+    impedance_negative_potential(k) = potential_negative_fft(idx) / current_fft(idx);
+    impedance_positive_potential(k) = potential_positive_fft(idx) / current_fft(idx);
+
+    fprintf('i = %.4f s\n', k);   
 end
 
-%% Plot Nyquist Diagram
 figure
-plot(real(impedance),-imag(impedance),'. -k','MarkerSize',10);
-axis equal
-xlabel('$Z_\mathrm{r}(\omega)$ [m$\Omega$]','Interpreter','latex','FontSize',11);
-ylabel('$-Z_\mathrm{j}(\omega)$ [m$\Omega$]','Interpreter','latex','FontSize',11); 
+plot(1000*real(impedance), -1000*imag(impedance), '-ok' , 'LineWidth' , 2 );
+% axis equal
+hold on
 
+figure
+plot(1000*real(impedance_negative_overpotential), -1000*imag(impedance_negative_overpotential), '-ok' , 'LineWidth' , 2 );
+% axis equal
+hold on
+
+figure
+plot(1000*real(impedance_positive_overpotential), -1000*imag(impedance_positive_overpotential), '-ok' , 'LineWidth' , 2 );
+% axis equal
+hold on
+
+
+fprintf('Total simulation time: %.2f seconds (%.2f minutes)\n', battery.SimulationParams.('elapsedTime'), battery.SimulationParams.('elapsedTime')/60);
+
+disp("------------------------")
+save("batteryStruct_2.mat", "batteryStruct");

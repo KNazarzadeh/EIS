@@ -44,10 +44,15 @@ classdef KineticParameters
                 % ---- local cache
                 Kinet = battery.KineticParams.electrode.(electrode);
                 CancE = battery.ConcentrationParams.electrode.(electrode);
-                CancElyt = battery.ConcentrationParams.electrolyte;             
+                Thrmody = battery.ThermodynamicParams.electrode.(electrode);
+                CancElyt = battery.ConcentrationParams.electrolyte;
+
                 % ---- Molar Ionic Flux ----------------------------------------
+                Thrmody.(['potential_timederivation_' prefix])(1, :) = 0;
                 Kinet.(['molar_ionic_flux_' prefix])(1) = ...
-                    calculator.compute_initial_molarIonicFlux(battery, applied_current, electrode);
+                    calculator.compute_molar_ionic_flux(battery, applied_current(1), ...
+                    Thrmody.(['potential_timederivation_' prefix])(1, :), ...
+                    electrode);
 
                 % ---- Reaction Rate Coefficient --------------------------------
                 Kinet.(['reaction_rate_coefficient_' prefix]) = ...

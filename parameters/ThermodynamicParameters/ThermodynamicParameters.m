@@ -97,6 +97,10 @@ classdef ThermodynamicParameters
                 % --- Initial potential -----------------------------------------
                 battery.ThermodynamicParams.electrode.(electrode).(['potential_' prefix])(1) = ...
                     battery.ThermodynamicParams.electrode.(electrode).(['equilibrium_potential_' prefix])(1);
+
+                % --- Initial Time Derivation of potential -----------------------------------------
+                battery.ThermodynamicParams.electrode.(electrode).(['potential_timederivation_' prefix])(1, :) = 0;
+
             end
         end
     end

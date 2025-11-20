@@ -101,5 +101,26 @@ classdef ThermodynamicParametersCalculator
             aging_stoichiometry = average_concentration ./ max_concentration;
         end
 
+        %% ------------------------ Solid-phase Potential Time Derivation --------------------------- %%
+        function potential_timederivation = compute_electrode_potential_derivation(~, potential_current, potential_prev, timeStep)
+
+            potential_timederivation = (potential_current - potential_prev) / timeStep;
+
+        end
+
+        %% -------------- Solid-phase Overpotential Derivation by Molar Flux--------------------- %%
+        function overpotential_molarderivation = compute_electrode_overpotential_molarderivation(~, ...
+                battery, molar_ionic_flux, exchange_current_density, film_resistance)
+
+            temperature = battery.ThermalParams.cell.temperature_reference_cell;
+
+            constants = ConstantParameters();
+
+            overpotential_molarderivation = (constants.R_gas * temperature / constants.F) * ...
+                          (constants.F ./ exchange_current_density) / ...
+                          sqrt(1 + (constants.F .* molar_ionic_flux ./ exchange_current_density).^2) - ...
+                          constants.F * film_resistance;
+        end
+
     end
 end

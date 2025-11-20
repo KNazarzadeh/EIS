@@ -31,22 +31,24 @@ classdef ESPMsimulation
                 
                 battery = ESPMsimulation.updateElectrolyteParams(battery, PreComPM, time);
 
-                battery = ESPMsimulation.updateRestElectrodeParams(battery, "negative", time);
-                battery = ESPMsimulation.updateRestElectrodeParams(battery, "positive", time);
+                battery = ESPMsimulation.updateRestElectrodeParams(battery, "negative", timeStep, time);
+                battery = ESPMsimulation.updateRestElectrodeParams(battery, "positive", timeStep, time);
 
                 battery = ESPMsimulation.updateCell(battery, applied_current(time+1), timeStep, time);
 
                 % ========= Termination Conditions ==========
-                fprintf('time=%.3fs | V=%.4f V\n', time, battery.ElectricalParams.cell.('voltage')(time+1, :));
-                if battery.ElectricalParams.cell.('voltage')(time+1, :) < battery.ElectricalParams.cell.('lower_voltage_cell') || ...
-                        battery.ElectricalParams.cell.('voltage')(time+1, :) > battery.ElectricalParams.cell.('upper_voltage_cell')
+                fprintf('time=%.3fs | V=%.4f V\n', time, battery.ElectricalParams.cell.voltage(time+1, :));
+                if battery.ElectricalParams.cell.voltage(time+1, :) < battery.ElectricalParams.cell.lower_voltage_cell || ...
+                        battery.ElectricalParams.cell.voltage(time+1, :) > battery.ElectricalParams.cell.upper_voltage_cell
                     break;
                 end
                 if timeStep < 1e-60
                     break;
                 end
 
-                if time >= timeSize-1 || time >= length(applied_current), break; end
+                if time > length(applied_current)
+                    break; 
+                end
 
                 timeVector(time+1, :) = timeVector(time, :) + timeStep;
                 time = time + 1;
@@ -56,7 +58,7 @@ classdef ESPMsimulation
             battery.SimulationParams.runtime = toc(t0);
 
             battery.SimulationParams.timeVector = timeVector' ;
-            battery.ElectricalParams.cell.applied_current = applied_current(2:end);
+            battery.ElectricalParams.cell.applied_current = applied_current;
 
             % Compute cell capacity for full simulation
              battery.ElectricalParams.cell.cell_capacity = ...
@@ -70,8 +72,10 @@ classdef ESPMsimulation
             prefix = electrode{1}(1:3);
         
             % Compute molar ionic flux                 
-            battery.KineticParams.electrode.(electrode).(['molar_ionic_flux_' prefix])(time+1, :) = ESPMsimulation.calcKin.compute_molar_ionic_flux( ...
+            battery.KineticParams.electrode.(electrode).(['molar_ionic_flux_' prefix])(time+1, :) = ...
+                ESPMsimulation.calcKin.compute_molar_ionic_flux( ...
                 battery, applied_current, ...
+                battery.ThermodynamicParams.electrode.(electrode).(['potential_timederivation_' prefix])(time, :), ...
                 electrode);           
 
             % Compute electrode concentration
@@ -147,7 +151,7 @@ classdef ESPMsimulation
         end
 
         %% Helper function for Electrode Parameters Update
-        function battery = updateRestElectrodeParams(battery, electrode, time)
+        function battery = updateRestElectrodeParams(battery, electrode, timeStep, time)
 
             prefix = electrode{1}(1:3);
             sei_film_resistance = battery.ElectricalParams.electrode.(electrode).(['sei_film_resistance_' prefix]);
@@ -169,7 +173,13 @@ classdef ESPMsimulation
                 ESPMsimulation.calcTherm.compute_electrode_potential( ...
                 battery.ThermodynamicParams.electrode.(electrode).(['overpotential_' prefix])(time+1), ...
                 battery.ThermodynamicParams.electrode.(electrode).(['equilibrium_potential_' prefix])(time+1));
-    
+
+
+            battery.ThermodynamicParams.electrode.(electrode).(['potential_timederivation_' prefix])(time+1, :) = ...
+                ESPMsimulation.calcTherm.compute_electrode_potential_derivation( ...
+                battery.ThermodynamicParams.electrode.(electrode).(['potential_' prefix])(time+1, :), ...
+                battery.ThermodynamicParams.electrode.(electrode).(['potential_' prefix])(time, :), ...
+                timeStep);
         end
     
         %% Helper function for Electrode Parameters Update

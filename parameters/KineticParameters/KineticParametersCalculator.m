@@ -48,6 +48,7 @@ classdef KineticParametersCalculator
         %% -------------------------- Molar Ionic Flux Best Best ------------------------- %%
         function molar_ionic_flux = compute_molar_ionic_flux(~, battery, ...
                                                            applied_current, ...
+                                                           potential_timederivation_previous, ...
                                                            electrode)
 
             % Prefix for electrodes ('neg', 'pos')
@@ -57,19 +58,21 @@ classdef KineticParametersCalculator
             constants = ConstantParameters();
             Geom = battery.GeometricParams;
 
+            double_layer_capacitance = battery.KineticParams.electrode.(electrode).(['double_layer_capacitance_' prefix]);
+
             surface_area = Geom.cell.('surface_area_cell');
             thickness = Geom.electrode.(electrode).(['thickness_' prefix]);
 
             specific_interfacial_surface_area = Geom.electrode.(electrode).particles.(['specific_interfacial_surface_area_' prefix]);
 
-            denominator = surface_area * thickness * specific_interfacial_surface_area;
+            denominator = constants.F * surface_area * thickness * specific_interfacial_surface_area;
 
             % Calculate molar ionic flux for each electrode
             if strcmpi(electrode, "negative")
-                molar_ionic_flux = -applied_current / (constants.F * denominator);
+                molar_ionic_flux = (-applied_current - double_layer_capacitance * potential_timederivation_previous) / denominator;
     
             elseif strcmpi(electrode, "positive")
-                molar_ionic_flux = applied_current / (constants.F * denominator);
+                molar_ionic_flux = (applied_current - double_layer_capacitance * potential_timederivation_previous) / denominator;
             end
         end
 
