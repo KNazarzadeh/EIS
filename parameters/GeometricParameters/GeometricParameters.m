@@ -11,24 +11,17 @@ classdef GeometricParameters
    methods(Static)
         function initialGeometricParameters( ...
                 battery, ...
-                applied_current, ...
-                working_electrode, ...
-                cycleNum)
+                working_electrode)
 
             % INITIALGEOMETRICPARAMETERS  Populate GeometricParams efficiently
             %
             %   - All heavy struct look-ups are cached locally.
             %   - Particle-field names are built once (vectorised where possible).
-            %   - Aging adjustments are performed in a single pass.
             %   - Model-specific geometry is added after the electrode loop.
-
             % --------------------------------------------------------------------
-            % 1. Initialise calculator & aging flags
+            % 1. Initialise calculator
             % --------------------------------------------------------------------
-            isFirstAging = (cycleNum == 1);
-            isLaterAging = (cycleNum > 1);
             calculator = GeometricParametersCalculator();
-
             % --------------------------------------------------------------------
             % 2. Main electrode loop
             % --------------------------------------------------------------------
@@ -49,42 +42,6 @@ classdef GeometricParameters
                 % ---- Extract all particle Radius in one vector --------
                 particleRadius = Geom.particles.(['particle_radius_' prefix]);
 
-                % ---- Aging parameters -----------------------------------------------------------
-                if isFirstAging && (strcmpi(electrode, "negative"))
-                    % ---- SEI initialization (negative only) -------------------------------------
-                        Geom.SEI_inner_thickness_total_neg(1) = Geom.sei_inner_thickness_initial_neg;
-                        Geom.SEI_inner_thickness_increased_neg(1) = 0;
-
-                elseif isLaterAging
-                    % ---- Active material volume fraction
-                    active_material_volume_fraction = Geom.(['active_material_volume_fraction_' prefix])(end);
-                    Geom.(['active_material_volume_fraction_' prefix]) = [];
-                    Geom.(['active_material_volume_fraction_' prefix])(1) = active_material_volume_fraction;
-
-                    % ---- Clear old fields -----------------------------
-                    % ---- Specific interfacial surface area --------------------------------------
-                    Geom.particles.(['specific_interfacial_surface_area_' prefix]) = [];
-                    % ---- LAM derivation active material volume fraction -------------------------
-                    Geom.(['volumeFractionLAM_derivation_' prefix]) = [];
-
-                    % ---- SEI initialization (negative only) -------------------------------------
-                    if strcmpi(electrode,'negative')
-                        % inner thickness
-                        sei_inner_thickness_initial = Geom.SEI_inner_thickness_total_neg(end);
-                        Geom.sei_inner_thickness_initial_neg = sei_inner_thickness_initial;
-                        Geom.SEI_inner_thickness_total_neg = [];
-                        Geom.SEI_inner_thickness_total_neg(1) = sei_inner_thickness_initial;
-                        Geom.SEI_inner_thickness_increased_neg = [];
-                        Geom.SEI_inner_thickness_increased_neg(1) = 0;
-                    end
-                end
-
-                % ---- LAM derivation (scalar, once per electrode) --------------------------------
-                Geom.(['volumeFractionLAM_derivation_' prefix])(1) = ...
-                    calculator.compute_electrode_volumeFractionLAM_derivation(battery, ...
-                    applied_current(1), ...
-                    electrode);
-
                 % ---- Specific interfacial surface area --------------------
                 specific_interfacial_surface_area = calculator.compute_specific_interfacial_surface_area( ...
                         particleRadius, ...
@@ -102,13 +59,6 @@ classdef GeometricParameters
                     calculator.compute_spatial_gridSpacing( ...
                     thickness, ...
                     numSpatialNodes);
-
-                % ---- Porous volume per electrode ------------------------------------------------
-                % specific_interfacial_surface_area = Geom.particles.(['surface_specific_interfacial_surface_area_' prefix]);            
-                Geom.(['porousVolume_' prefix]) = ...
-                    calculator.compute_electrode_porous_volume(battery, ...
-                    specific_interfacial_surface_area, ...
-                    thickness);
 
                 % ---- Electrolyte volume fraction (fallback computation) -------------------------
                 elyteVfld = ['electrolyte_volume_fraction_' prefix];

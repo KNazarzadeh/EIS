@@ -14,8 +14,7 @@ classdef KineticParameters
         function initialKineticParameters( ...
                 battery, ...
                 applied_current, ...
-                working_electrode, ...
-                cycleNum)
+                working_electrode)
             % Initial and organize kinetic parameters by domain
             %
             % Description:
@@ -30,10 +29,8 @@ classdef KineticParameters
             % kineticParams: Updated object with kinetic_params structure populated
 
             % --------------------------------------------------------------------
-            % 1. Initialise calculator & aging flags
+            % 1. Initialise calculator
             % --------------------------------------------------------------------
-            isFirstAging = (cycleNum == 1);
-            isLaterAging = (cycleNum > 1);
             calculator = KineticParametersCalculator();
 
             % --------------------------------------------------------------------
@@ -47,16 +44,7 @@ classdef KineticParameters
                 % ---- local cache
                 Kinet = battery.KineticParams.electrode.(electrode);
                 CancE = battery.ConcentrationParams.electrode.(electrode);
-                CancElyt = battery.ConcentrationParams.electrolyte;
-                Geom = battery.GeometricParams.electrode.(electrode);
-
-                % ---- Aging parameters -----------------------------------------------------------
-                if isLaterAging
-                    Kinet.(['reaction_rate_coefficient_' prefix]) = [];
-                    Kinet.(['molar_ionic_flux_' prefix]) = [];
-                    Kinet.(['exchange_current_density_' prefix]) = [];
-                end
-                
+                CancElyt = battery.ConcentrationParams.electrolyte;             
                 % ---- Molar Ionic Flux ----------------------------------------
                 Kinet.(['molar_ionic_flux_' prefix])(1) = ...
                     calculator.compute_initial_molarIonicFlux(battery, applied_current, electrode);
@@ -74,32 +62,6 @@ classdef KineticParameters
                     CancElyt.(['concentration_mean_elyte_' prefix])(1), ...
                     electrode);
 
-                % ----------------------------------------------------------------
-                % ---- SEI-specific (negative electrode only, aging mode)
-                % ----------------------------------------------------------------
-                if strcmpi(electrode, "negative")
-                    if isFirstAging
-                        Kinet.Lithium_loss_SEI_formation_neg(1) = 0;
-                        % Maximum lithium concentration in electrode [mol/m^3]
-                        max_concentration =  CancE.concentration_maximum_neg;
-                        average_concentration_initial = CancE.average_concentration_neg(1);
-                        stoichiometry_init = average_concentration_initial / max_concentration;
-    
-                        Kinet.SEI_tunneling_reaction_rate_neg(1) = ...
-                            calculator.compute_SEI_electron_tunneling_rate(battery, ...
-                            electrode, ...                
-                            stoichiometry_init, ...
-                            Geom.sei_inner_thickness_initial_neg(1));
-
-                    elseif isLaterAging
-                        SEI_tunneling_reaction_rate = Kinet.SEI_tunneling_reaction_rate_neg(end);
-                        Kinet.SEI_tunneling_reaction_rate_neg = [];
-                        Kinet.SEI_tunneling_reaction_rate_neg(1) = SEI_tunneling_reaction_rate;
-                        Lithium_loss_SEI_formation = Kinet.Lithium_loss_SEI_formation_neg(end);
-                        Kinet.Lithium_loss_SEI_formation_neg = [];
-                        Kinet.Lithium_loss_SEI_formation_neg(1) = Lithium_loss_SEI_formation;
-                    end
-                end
                 battery.KineticParams.electrode.(electrode) = Kinet;
             end
             

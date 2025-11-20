@@ -17,18 +17,15 @@ addpath(fullfile(root_dir, 'parameters', 'KineticParameters'));
 addpath(fullfile(root_dir, 'parameters', 'ThermodynamicParameters'));
 addpath(fullfile(root_dir, 'parameters', 'TransportParameters'));
 addpath(fullfile(root_dir, 'parameters', 'ThermalParameters'));
-addpath(fullfile(root_dir, 'parameters', 'UpdateParameters'));
 
 % Add Simulation folder
 addpath(fullfile(root_dir, 'simulation'));
 
 % Add project folders to the MATLAB path
 addpath(fullfile(root_dir, 'models', 'lithium_ion', 'battery_models'));
-addpath(fullfile(root_dir, 'models', 'lithium_ion', 'aging_models'));
+addpath(fullfile(root_dir, 'models', 'lithium_ion', 'EIS'));
 
 addpath(fullfile(root_dir, 'models', 'lithium_ion', 'submodels', 'FVM'));
-addpath(fullfile(root_dir, 'models', 'lithium_ion', 'submodels', 'CCCV'));
-addpath(fullfile(root_dir, 'models', 'lithium_ion', 'submodels', 'PackLevel'));
 % Add common files
 addpath(fullfile(root_dir, 'utils'));
 

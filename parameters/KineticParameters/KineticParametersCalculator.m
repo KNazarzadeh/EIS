@@ -131,55 +131,5 @@ classdef KineticParametersCalculator
             reaction_rate =  reaction_rate_reference .* arrhenius_factor;
         end
 
-        %% SEI Tunneling Reaction Rate
-        function SEI_tunneling_reaction_rate = compute_SEI_electron_tunneling_rate(~, ...
-                battery, ...
-                electrode, ...                
-                stiochiometry, ...
-                SEI_inner_thickness_total ...
-                )
-            
-            constants = ConstantParameters();
-
-            % Prefix for electrodes ('neg', 'pos')
-            prefix = electrode{1}(1:3);
-
-            Geom = battery.GeometricParams.electrode.(electrode);
-            Kinet = battery.KineticParams.electrode.(electrode);
-            % Constant Values
-            SEI_molar_mass = Geom.(['sei_molar_mass_' prefix]);
-
-            SEI_density = Geom.(['sei_density_' prefix]);
-
-            fermi_electron_velocity = Kinet.(['fermi_electron_velocity_' prefix]);
-
-            electron_tunneling_probability = Kinet.(['electron_tunneling_probability_' prefix]);
-
-            electron_mass = Kinet.(['electron_mass_' prefix]);
-
-            energy_barrier = Kinet.(['energy_barrier_' prefix]);
-
-            if isa(energy_barrier, "function_handle")
-                energy_barrier = @(stiochiometry) Kinet.(['energy_barrier_' prefix])(stiochiometry);
-            end
-
-            SEI_tunneling_reaction_rate = (((6 + stiochiometry) .* SEI_density) ./ ...
-                (4 * SEI_molar_mass)) .* ...
-                fermi_electron_velocity .* electron_tunneling_probability .* ...
-                exp(-(2 * SEI_inner_thickness_total .* ...
-                sqrt(2 * electron_mass .* energy_barrier) / constants.reduced_planck));
-        end
-
-            %% loss of Li due to the SEI formation
-            function Lithium_loss_SEI_formation = compute_Lithium_loss_SEI_formation(~, ...
-                Lithium_loss_SEI_formation_previous, ...
-                specific_interfacial_surface_area, ...
-                SEI_tunneling_reaction_rate, ...
-                timeStep)
-                               
-                Lithium_loss_SEI_formation = Lithium_loss_SEI_formation_previous + ...
-                    specific_interfacial_surface_area * SEI_tunneling_reaction_rate * timeStep;
-            end
-
     end
 end

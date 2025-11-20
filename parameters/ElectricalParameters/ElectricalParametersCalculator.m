@@ -16,44 +16,26 @@ classdef ElectricalParametersCalculator
         end
         
         %% -------------------- Set Initial State of Charge (SOC) -------------------- %%
-        function soc_init = compute_initial_SOC(~, battery, cycleNum)
+        function soc_init = compute_initial_SOC(~, battery)
             
-            if cycleNum > 1
-                sto0_neg = battery.ThermodynamicParams.electrode.negative.stoichiometry_at_0_soc_neg(end);
-                sto100_neg = battery.ThermodynamicParams.electrode.negative.stoichiometry_at_100_soc_neg(end);
-                concentraion_max_neg = battery.ConcentrationParams.electrode.negative.concentration_maximum_neg;
-                cs_avg_neg = battery.ConcentrationParams.electrode.negative.average_concentration_neg(1);
-                soc_init = (cs_avg_neg/concentraion_max_neg - sto0_neg)/(sto100_neg - sto0_neg);
+            soc_init = battery.SimulationParams.('SOC_initial');
+            if soc_init > 2
+                z = linspace(0,1,10000);
+                OCV =  battery.ThermodynamicParams.electrode.(electrode).U_pos((p.s100_pos-p.s0_pos)*z + p.s0_pos) - p.U_neg((p.s100_neg-p.s0_neg)*z + p.s0_neg);
+                soc_init = interp1(OCV,z,V_init,'linear','extrap');
             else
-                soc_init = battery.SimulationParams.('SOC_initial');
-                if soc_init > 2
-                    z = linspace(0,1,10000);
-                    OCV =  battery.ThermodynamicParams.electrode.(electrode).U_pos((p.s100_pos-p.s0_pos)*z + p.s0_pos) - p.U_neg((p.s100_neg-p.s0_neg)*z + p.s0_neg);
-                    soc_init = interp1(OCV,z,V_init,'linear','extrap');
-                else
-                    soc_init = max(min(soc_init, 1-1e-6), 1e-6);   % e.g., 1e-6 instead of 0
-                end
+                soc_init = max(min(soc_init, 1-1e-6), 1e-6);   % e.g., 1e-6 instead of 0
             end
         end
 
         %% --------------------  State of Charge (SOC) -------------------- %%
-        function soc = compute_SOC(~, battery, ...
+        function soc = compute_SOC(~, ...
                 applied_current, ...
                 soc_previous, ...
                 battery_capacity_cell, ...
-                cycleNum, ...
-                timeStep, ...
-                time)
+                timeStep)
 
-            if cycleNum > 1
-                sto0_neg = battery.ThermodynamicParams.electrode.negative.stoichiometry_at_0_soc_neg(end);
-                sto100_neg = battery.ThermodynamicParams.electrode.negative.stoichiometry_at_100_soc_neg(end);
-                concentraion_max_neg = battery.ConcentrationParams.electrode.negative.concentration_maximum_neg;
-                cs_avg_neg = battery.ConcentrationParams.electrode.negative.average_concentration_neg(time+1);
-                soc = (cs_avg_neg/concentraion_max_neg - sto0_neg)/(sto100_neg - sto0_neg);
-            else
                 soc = soc_previous + timeStep * applied_current / battery_capacity_cell;
-            end
         end
 
         %% ------------------------ Cell OCV Range Limitation --------------------------- %%
@@ -73,27 +55,17 @@ classdef ElectricalParametersCalculator
         end
 
         %% ------------------------ Cell OCV Range Limitation --------------------------- %%
-        function battery_capacity = compute_battery_capacity(~, battery, cycleNum)
+        function battery_capacity = compute_battery_capacity(~, battery)
 
             constants = ConstantParameters();
-            if cycleNum > 1
-                battery_capacity = (battery.ThermodynamicParams.electrode.negative.stoichiometry_at_100_soc_neg - ...
-                    battery.ThermodynamicParams.electrode.negative.stoichiometry_at_0_soc_neg) * ...
-                    battery.GeometricParams.electrode.negative.active_material_volume_fraction_neg * ...
-                    battery.GeometricParams.electrode.negative.thickness_neg * ...
-                    battery.GeometricParams.cell.surface_area_cell * ...
-                    constants.F * ...
-                    battery.ConcentrationParams.electrode.negative.concentration_maximum_neg;
-            else
-                %Reversible capacity of the battery [C]
-                battery_capacity = (battery.ThermodynamicParams.electrode.positive.stoichiometry_at_0_soc_pos - ...
-                    battery.ThermodynamicParams.electrode.positive.stoichiometry_at_100_soc_pos) * ...
-                    battery.GeometricParams.electrode.positive.active_material_volume_fraction_pos * ...
-                    battery.GeometricParams.electrode.positive.thickness_pos * ...
-                    battery.GeometricParams.cell.surface_area_cell * ...
-                    constants.F * ...
-                    battery.ConcentrationParams.electrode.positive.concentration_maximum_pos;
-            end
+            %Reversible capacity of the battery [C]
+            battery_capacity = (battery.ThermodynamicParams.electrode.positive.stoichiometry_at_0_soc_pos - ...
+                battery.ThermodynamicParams.electrode.positive.stoichiometry_at_100_soc_pos) * ...
+                battery.GeometricParams.electrode.positive.active_material_volume_fraction_pos * ...
+                battery.GeometricParams.electrode.positive.thickness_pos * ...
+                battery.GeometricParams.cell.surface_area_cell * ...
+                constants.F * ...
+                battery.ConcentrationParams.electrode.positive.concentration_maximum_pos;
         end
  
         %% ------------------------ Cell Voltage --------------------------- %%
@@ -157,104 +129,5 @@ classdef ElectricalParametersCalculator
                             constants.F;
         end
 
-        %% ------------------------ Cell State of Health (SOH) --------------------------- %%
-
-        function SOH = compute_SOH(~, battery, aging_capacity_battery)
-            
-            SOH =  aging_capacity_battery / battery.ElectricalParams.cell.('battery_capacity_cell');
-            
-        end
-
-        %% -------------- AGING CALCULATIONS -------------------------------------------------------
-        % Capacity Loss by LAM (Loss Active Material)
-        function capacityLossLAM = calculate_capacityLoss_LAM(~, battery, ...
-                capacityLossLAM_previous, ...
-                volumeFractionLAM_derivation, ...
-                stoichemiotry, ...
-                electrode, timeStep)
-
-            % calculate_capacityLoss_LAMNeg
-            % -------------------------------------------------------------------------
-            % Calculates the instantaneous capacity loss due to Loss of Active Material
-            % (LAM) in a lithium-ion battery Negative electrode.
-            %
-            % Equation:
-            %   dQ_LAM/dt = (dε_s/dt) * stoichiometry_neg * V_porous_neg * c_s,max
-            %
-            % Inputs:
-            %   volumeFractionLAM_derivation - vector [1/s]
-            %       The rate of change of active material volume fraction (ε_s) at each 
-            %       timestep. Typically computed as: dε_s/dt = K_LAM * |I|
-            %
-            %   stoichiometry - scalar [-]
-            %       The stoichiometric coefficient (y) representing the fraction of 
-            %       active sites contributing to lithium storage.
-            %
-            %   porousVolume - scalar [m^3]
-            %       Volume of the porous electrode.
-            %
-            %   concentration_max - scalar [mol/m^3]
-            %       Maximum lithium concentration in the active material
-            %
-            % Output:
-            %   capacityLossLAM - vector [mol/s]
-            %       Rate of capacity loss caused by LAM at each timestep.
-            %
-            % -------------------------------------------------------------------------
-               
-            prefix = electrode{1}(1:3);
-
-            concenteration_max = battery.ConcentrationParams.electrode.(electrode).(['concentration_maximum_' prefix]);
-
-            porousVolume = battery.GeometricParams.electrode.(electrode).(['porousVolume_' prefix]);
-
-            % Compute LAM capacity loss at each timestep
-            % --- Positive loss rate in mol/s: dQ_loss/dt = -(dε/dt)*Δθ*V*c_s,max ---
-            capacityLossLAM = capacityLossLAM_previous + ...
-                (volumeFractionLAM_derivation * stoichemiotry * porousVolume * concenteration_max) * timeStep;
-            
-        end
-
-        %% Capacity Loss by SEI
-        function capacityLossSEI = calculate_capacityLoss_SEI(~, battery, ...
-                Lithium_loss_SEI_formation)
-  
-            porousVolume = battery.GeometricParams.electrode.negative.porousVolume_neg;
-
-            capacityLossSEI = Lithium_loss_SEI_formation * porousVolume;
-        end
-
-
-        %% Film Resistance
-        function filmResistance = compute_filmResistance(~, battery, ...
-                SEI_inner_thickness_total, ...
-                electrode ...
-                )
-   
-            prefix = electrode{1}(1:3);
-
-            outer_layer_thickness = battery.GeometricParams.electrode.(electrode).(['sei_outer_thickness_initial_' prefix]);
-            
-            SEI_total_thickness = outer_layer_thickness + SEI_inner_thickness_total;
-            
-            filmResistance = SEI_total_thickness / ...
-                    battery.TransportParams.electrode.(electrode).(['sei_conductivity_' prefix]);
-        end
-
-        %% Total Capacity Loss = SEI + LAM loss
-        function capacity_loss = compute_total_capacity_loss(~, ...
-            capacityLossLAM, ...
-            capacityLossSEI)
-
-            capacity_loss = abs(capacityLossLAM) + capacityLossSEI;
-        end
-
-        %% Total Capacity Loss
-        function total_capacityLoss = compute_total_capacityLoss(~, ...
-                capacityLossLAM_neg, ...
-                capacityLossLAM_pos, ...
-                capacityLossSEI_neg)
-            total_capacityLoss = abs(capacityLossLAM_neg + capacityLossLAM_pos) + capacityLossSEI_neg;
-        end
     end
 end

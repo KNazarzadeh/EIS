@@ -24,7 +24,7 @@ C_rate = NaN;
 thermal_mode = NaN;
 
 % Constant applied current in Amperes; NaN if using C-rate or experimental profile
-applied_current = NaN;
+applied_current = 0.01;
 
 % Operating temperature in degrees Celsius
 temperature = 25;
@@ -50,3 +50,5 @@ simulation( ...
     cell_analysis_mode, ...
     timeFinal, ...
     timeStep);
+
+

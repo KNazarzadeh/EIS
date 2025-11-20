@@ -11,7 +11,6 @@ classdef ESPM
                 battery, ...
                 applied_current, ...
                 working_electrode, ...
-                cycleNum, ...
                 timeStep, ...
                 temperature)
 
@@ -28,7 +27,7 @@ classdef ESPM
             % thermodynamics, and electrical behavior.
             
             % -------- Geometric parameters --------
-            GeometricParameters.initialGeometricParameters(battery, applied_current, working_electrode, cycleNum);
+            GeometricParameters.initialGeometricParameters(battery, working_electrode);
 
             % -------- Precompute FVM matrices (electrodes) --------
             for electrode = working_electrode                
@@ -38,10 +37,10 @@ classdef ESPM
             
             % -------- Concentration parameters --------
             ConcentrationParameters.initialConcentrationParameters(battery, battery.preComputedMatrix.electrode, ...
-                working_electrode, cycleNum);
+                working_electrode);
 
             % -------- Kinetic parameters --------
-            KineticParameters.initialKineticParameters(battery, applied_current, working_electrode, cycleNum);
+            KineticParameters.initialKineticParameters(battery, applied_current, working_electrode);
 
             % -------- Transport parameters --------
             TransportParameters.initialTransportParameters(battery);
@@ -54,10 +53,10 @@ classdef ESPM
 
             % -------- Thermodynamic parameters --------
             ThermodynamicParameters.initialThermodynamicParameters(battery, battery.preComputedMatrix.electrolyte, ...
-                working_electrode, cycleNum);
+                working_electrode);
 
             % -------- Electrical parameters --------
-            ElectricalParameters.initialElectricalParameters(battery, applied_current, cycleNum);
+            ElectricalParameters.initialElectricalParameters(battery, applied_current);
         end
     end
 end

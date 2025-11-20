@@ -73,7 +73,6 @@ function simulation(model, ...
 
     %% Run simulation for selected model
     % Determine applied current using C-rate if needed
-    applied_current = [];
     applied_current = DataPreprocessing.preprocessCurrent(battery, applied_current, C_rate, cycle_startmode);
 
     switch model

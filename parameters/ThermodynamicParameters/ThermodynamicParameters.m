@@ -14,8 +14,7 @@ classdef ThermodynamicParameters
         function initialThermodynamicParameters( ...
                 battery, ...
                 preComputedMatrix, ...
-                working_electrode, ...
-                cycleNum)
+                working_electrode)
             % Extract and organize thermodynamic parameters by domain
             %
             % Description:
@@ -30,9 +29,8 @@ classdef ThermodynamicParameters
             % thermodynamicParams: Updated object with thermodynamicParams structure populated
 
             % --------------------------------------------------------------------
-            % 1. Initialise calculator & aging flags
+            % 1. Initialise calculator
             % --------------------------------------------------------------------
-            isLaterAging = (cycleNum > 1);
             boundaryPotentialElyteDiscreteTime = preComputedMatrix.boundaryPotentialElyteDiscreteTime;
             surfacePotentialElyteMatrix = preComputedMatrix.surfacePotentialElyteMatrix;
             diffusionPotentialElyteMatrix = preComputedMatrix.diffusionPotentialElyteMatrix;
@@ -43,12 +41,6 @@ classdef ThermodynamicParameters
             % 2. Model-specific geometry (executed once, after electrodes)
             % --------------------------------------------------------------------       
             % -------- ESPM: compute electrolyte potential --------
-            if isLaterAging
-                battery.ThermodynamicParams.electrolyte.potential_elyte = []; 
-                battery.ThermodynamicParams.electrolyte.potential_mean_elyte_neg = [];
-                battery.ThermodynamicParams.electrolyte.potential_mean_elyte_pos = [];
-            end
-
             battery.ThermodynamicParams.electrolyte.potential_elyte(:, 1) = ...
                 calculator.compute_electrolyte_potential( ...
                 boundaryPotentialElyteDiscreteTime, ...
@@ -73,15 +65,7 @@ classdef ThermodynamicParameters
                 % ---- Prefix for electrodes ('neg', 'pos') ----------------------
                 prefix = electrode{1}(1:3);
                 Conc = battery.ConcentrationParams.electrode.(electrode);
-
-                % -------- On aging resume: clear once and reuse last potential if needed
-                if isLaterAging
-                    Thermod = battery.ThermodynamicParams.electrode.(electrode);
-                    Thermod.(['stoichiometry_' prefix]) = [];
-                    Thermod.(['equilibrium_potential_' prefix]) = [];
-                    Thermod.(['overpotential_' prefix]) = [];
-                    battery.ThermodynamicParams.electrode.(electrode) = Thermod;
-                end
+                Elect = battery.ElectricalParams.electrode.(electrode);
                 % ---- Stoichiometry -----------------------------------------------
                 battery.ThermodynamicParams.electrode.(electrode).(['stoichiometry_' prefix])(1) = ...
                     calculator.compute_stoichiometry( ...
@@ -101,14 +85,8 @@ classdef ThermodynamicParameters
                     Conc.(['average_concentration_' prefix])(1), ...
                     Conc.(['concentration_maximum_' prefix]));
 
-                % ---- SEI resistance (first vs last for aging) ------------------
-                if isLaterAging
-                    sei_film_resistance = battery.ElectricalParams.electrode.(electrode).(['sei_film_resistance_' prefix])(end);
-                else
-                    sei_film_resistance = battery.ElectricalParams.electrode.(electrode).(['sei_film_resistance_' prefix])(1);
-                end
-
                 % ---- Overpotential --------------------------------------------
+                sei_film_resistance = Elect.(['sei_film_resistance_' prefix]);
                 battery.ThermodynamicParams.electrode.(electrode).(['overpotential_' prefix])(1) = ...
                     calculator.compute_electrode_overpotential(battery, ...
                     battery.KineticParams.electrode.(electrode).(['molar_ionic_flux_' prefix])(1), ...
@@ -117,14 +95,8 @@ classdef ThermodynamicParameters
                     sei_film_resistance, ...
                     electrode);
                 % --- Initial potential -----------------------------------------
-                if isLaterAging
-                    potential_last = battery.ThermodynamicParams.electrode.(electrode).(['potential_' prefix])(end);
-                    battery.ThermodynamicParams.electrode.(electrode).(['potential_' prefix]) = [];
-                    battery.ThermodynamicParams.electrode.(electrode).(['potential_' prefix])(1) = potential_last;
-                else
-                    battery.ThermodynamicParams.electrode.(electrode).(['potential_' prefix])(1) = ...
-                        battery.ThermodynamicParams.electrode.(electrode).(['equilibrium_potential_' prefix])(1);
-                end
+                battery.ThermodynamicParams.electrode.(electrode).(['potential_' prefix])(1) = ...
+                    battery.ThermodynamicParams.electrode.(electrode).(['equilibrium_potential_' prefix])(1);
             end
         end
     end

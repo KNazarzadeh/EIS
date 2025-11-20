@@ -5,15 +5,14 @@ classdef ConcentrationParameters
     % -----------
     % This class extracts concentration parameters from a specified battery type
     % and organizes them into domains (cell, electrode,
-    % electrolyte, separator, SEI) based on the electrochemical model type (e.g., SPM, ESPM, DFN).
+    % electrolyte, separator) based on the electrochemical model type (e.g., SPM, ESPM, DFN).
     %
     methods(Static)
         % Initial Values of Parameters
         function initialConcentrationParameters( ...
                 battery, ...
                 preComputedMatrix, ...
-                working_electrode, ...
-                cycleNum)
+                working_electrode)
 
             % Initial and organize concentration parameters by domain
             %
@@ -29,9 +28,8 @@ classdef ConcentrationParameters
             % obj: Updated object with concentrationParams structure populated
             
             % --------------------------------------------------------------------
-            % 1. Initialise calculator & aging flags
+            % 1. Initialise calculator
             % --------------------------------------------------------------------
-            isLaterAging = (cycleNum > 1);
             calculator = ConcentrationParametersCalculator();
 
             % --------------------------------------------------------------------
@@ -44,51 +42,31 @@ classdef ConcentrationParameters
                 Conc = battery.ConcentrationParams.electrode.(electrode);  % <-- cache
 
                 % ---- Stoichiometry concentrations (0% and 100% SOC) -----------------                
-                Conc.(['concentration_stoichiometry_at_0_soc_' prefix])(cycleNum) = ...
+                Conc.(['concentration_stoichiometry_at_0_soc_' prefix]) = ...
                     calculator.compute_electrode_concentration_at_stoichiometry_level(battery, electrode, "0");
-                Conc.(['concentration_stoichiometry_at_100_soc_' prefix])(cycleNum) = ...
+                Conc.(['concentration_stoichiometry_at_100_soc_' prefix]) = ...
                     calculator.compute_electrode_concentration_at_stoichiometry_level(battery, electrode, "100");
 
                 % --------------------------------------------------------
                 % --- Write back the fully-populated local struct
                 % --------------------------------------------------------
                 battery.ConcentrationParams.electrode.(electrode) = Conc;
-
-                % ---- Aging parameters -----------------------------------------------------------
                 Conc = battery.ConcentrationParams.electrode.(electrode);  % <-- cache
+                % ---- Compute initial values --------------------------
+                Conc.(['concentration_' prefix])(:, 1) = ...
+                    calculator.compute_electrode_initial_concentration(battery, ...
+                    electrode);
+            
+                Acs_bar = preComputedMatrix.(electrode).Acs_bar;
+                Conc.(['surface_concentration_' prefix])(1) = ...
+                    calculator.compute_electrode_surface_concentration(...
+                    Conc.(['concentration_' prefix])(:, 1), ...
+                    Acs_bar);
 
-                if isLaterAging
-                    % ---- Concentration --------------------------------------------
-                    concentration_last = Conc.(['concentration_' prefix])(:, end);
-                    Conc.(['concentration_' prefix]) = [];
-                    Conc.(['concentration_' prefix])(:, 1) = concentration_last;
-
-                    % ---- Surface concentration ------------------------------------
-                    surface_concentration_last = Conc.(['surface_concentration_' prefix])(end);
-                    Conc.(['surface_concentration_' prefix]) = [];
-                    Conc.(['surface_concentration_' prefix])(1) = surface_concentration_last;
-                    
-                    % ---- Average concentration ------------------------------------
-                    average_concentration_last = Conc.(['average_concentration_' prefix])(end);
-                    Conc.(['average_concentration_' prefix]) = [];
-                    Conc.(['average_concentration_' prefix])(1) = average_concentration_last;
-                else
-                    % ---- Cycle 1: compute initial values --------------------------
-                    Conc.(['concentration_' prefix])(:, 1) = ...
-                        calculator.compute_electrode_initial_concentration(battery, ...
-                        electrode);
-                
-                    Acs_bar = preComputedMatrix.(electrode).Acs_bar;
-                    Conc.(['surface_concentration_' prefix])(1) = ...
-                        calculator.compute_electrode_surface_concentration(...
-                        Conc.(['concentration_' prefix])(:, 1), ...
-                        Acs_bar);
-    
-                    Conc.(['average_concentration_' prefix])(1) = ...
-                        calculator.compute_electrode_average_concentration(battery, ...
-                        Conc.(['concentration_' prefix])(:, 1), ...
-                        electrode);
-                end
+                Conc.(['average_concentration_' prefix])(1) = ...
+                    calculator.compute_electrode_average_concentration(battery, ...
+                    Conc.(['concentration_' prefix])(:, 1), ...
+                    electrode);
                 % --------------------------------------------------------
                 % 3. Write back the fully-populated local struct
                 % --------------------------------------------------------
@@ -107,23 +85,12 @@ classdef ConcentrationParameters
             % ---- Electrolyte Mean Concentration -------------------------------------
             numSpatialNodes_neg = Geom.electrode.negative.('number_spatial_nodes_neg');
             numSpatialNodes_pos = Geom.electrode.positive.('number_spatial_nodes_pos');
-            % ---- Aging parameters ---------------------------------------------------
-            if isLaterAging
-                % ---- Electrolyte Concentration --------------------------------------
-                concentration_elyte_init = ConcElyte.('concentration_elyte')(:, end);
-                ConcElyte.('concentration_elyte') = [];
-                ConcElyte.('concentration_elyte')(:, 1) = concentration_elyte_init;
-                % ---- Electrolyte Mean Concentration ---------------------------------
-                ConcElyte.('concentration_mean_elyte_neg') = [];
-                ConcElyte.('concentration_mean_elyte_pos') = [];
-
-            else
-                numSpatialNodesTotal = numSpatialNodes_neg + numSpatialNodes_sep + numSpatialNodes_pos;
-                % ---- Electrolyte Concentration --------------------------------------
-                concentration_elyte_init = ConcElyte.('concentration_initial_elyte') .* ones(numSpatialNodesTotal, 1);
-                ConcElyte.('concentration_elyte')(:, 1) = concentration_elyte_init;
-                ConcElyte.('concentration_initial_elyte') = concentration_elyte_init;
-            end
+            % ---- Electrolyte parameters ---------------------------------------------------
+            numSpatialNodesTotal = numSpatialNodes_neg + numSpatialNodes_sep + numSpatialNodes_pos;
+            % ---- Electrolyte Concentration --------------------------------------
+            concentration_elyte_init = ConcElyte.('concentration_initial_elyte') .* ones(numSpatialNodesTotal, 1);
+            ConcElyte.('concentration_elyte')(:, 1) = concentration_elyte_init;
+            ConcElyte.('concentration_initial_elyte') = concentration_elyte_init;
             
             idx_range_neg = 1:numSpatialNodes_neg;
             ConcElyte.('concentration_mean_elyte_neg')(1) = mean(concentration_elyte_init(idx_range_neg));

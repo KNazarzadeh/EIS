@@ -15,7 +15,7 @@ classdef DataPreprocessing
             timeFinal = battery.SimulationParams.timeFinal;
             timeStep = battery.SimulationParams.timeStep;
 
-            if ~isvector(applied_current)
+            if isnan(applied_current)
                 if isnan(C_rate)
                     error('Input current or C-rate must be provided.');
                 
@@ -28,19 +28,6 @@ classdef DataPreprocessing
                 if strcmpi(cycle_startmode, "charge") && ~isnan(C_rate)
                     applied_current = C_rate * battery.ElectricalParams.cell.('nominal_capacity_cell') * ones(round(timeFinal/timeStep), 1);
                 elseif strcmpi(cycle_startmode, "discharge") && ~isnan(C_rate) &&  isnan(current_mode)
-                    applied_current = -C_rate * battery.ElectricalParams.cell.('nominal_capacity_cell') * ones(round(timeFinal/timeStep), 1);
-                end
-
-            elseif isnan(applied_current)
-                if isnan(C_rate)
-                    error('Input current or C-rate must be provided.');
-                end
-                if ~isfield(battery.ElectricalParams.cell, 'nominal_capacity_cell')
-                    error('Nominal capacity required for C-rate calculation.');
-                end
-                if strcmpi(cycle_startmode, "charge") && ~isnan(C_rate)
-                    applied_current = C_rate * battery.ElectricalParams.cell.('nominal_capacity_cell') * ones(round(timeFinal/timeStep), 1);
-                elseif strcmpi(cycle_startmode, "discharge") && ~isnan(C_rate)
                     applied_current = -C_rate * battery.ElectricalParams.cell.('nominal_capacity_cell') * ones(round(timeFinal/timeStep), 1);
                 end
 
