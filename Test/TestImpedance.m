@@ -4,12 +4,8 @@ clc;
 % profile clear                              % reset old data
 % profile on -timer real                     % wall-clock timing (good default)
 %% Set Input file
-% databasePath = "C:\Users\k.nazarzadeh\Projects\EIS";
-databasePath = "U:\Battery_Experiment_Database\knazarzadeh\";
-
-
-% inputFileName = "knazarzadeh_ESPM_Pouch_cells_EIS.xlsx";
-inputFileName = "knazarzadeh_Single_particle_ESPM.xlsx";
+databasePath = "C:\Users\k.nazarzadeh\Projects\EIS";
+inputFileName = "knazarzadeh_ESPM_Pouch_cells_EIS_2.xlsx";
 
 %% Battery Parameters
 % Read Battery Parameters from Excel file
@@ -28,7 +24,7 @@ thermal_mode = NaN;
 temperature = 25;
 % Analysis mode: "full-cell" or "half-cell"
 cell_analysis_mode = "full-cell";
-cycle_startmode = "discharge";
+cycle_startmode = "charge";
 
 %% Run Impedance
 % ---------------- User settings ----------------
