@@ -10,36 +10,48 @@ classdef DataPreprocessing
         %     % obj.applied_current = obj.compute_applied_current(input_current, obj.input_time, obj.timeVector);
         % end 
 
-        function applied_current = preprocessCurrent(battery, applied_current, isCCCV, ...
-                dischargeC_rate, chargeC_rate, cycle_startmode, parallelCellNum)
+
+        function applied_current = preprocessCurrent(battery, applied_current, C_rate, cycle_startmode)
             timeFinal = battery.SimulationParams.timeFinal;
-            if isCCCV
-                if strcmpi(cycle_startmode, "discharge")
-                    applied_current = -dischargeC_rate * battery.ElectricalParams.cell.('nominal_capacity_cell');
-                elseif strcmpi(cycle_startmode, "charge")
-                    applied_current = chargeC_rate * battery.ElectricalParams.cell.('nominal_capacity_cell');
+            timeStep = battery.SimulationParams.timeStep;
+
+            if ~isvector(applied_current)
+                if isnan(C_rate)
+                    error('Input current or C-rate must be provided.');
+                
+                else
+                    if ~isfield(battery.ElectricalParams.cell, 'nominal_capacity_cell')
+                        error('Nominal capacity required for C-rate calculation.');
+                    end
                 end
-                applied_current = applied_current/parallelCellNum;
-            
-            else
-                if ~isvector(applied_current)
-                    if ~isfield(battery.ElectricalParams.cell, 'nominal_capacity_cell')
-                        error('Nominal capacity required for C-rate calculation.');
-                    end        
-                elseif isnan(applied_current)
-                    if ~isfield(battery.ElectricalParams.cell, 'nominal_capacity_cell')
-                        error('Nominal capacity required for C-rate calculation.');
-                    end
 
-                elseif isvector(applied_current) && ~isscalar(applied_current)
-                    applied_current = applied_current;
+                if strcmpi(cycle_startmode, "charge") && ~isnan(C_rate)
+                    applied_current = C_rate * battery.ElectricalParams.cell.('nominal_capacity_cell') * ones(round(timeFinal/timeStep), 1);
+                elseif strcmpi(cycle_startmode, "discharge") && ~isnan(C_rate) &&  isnan(current_mode)
+                    applied_current = -C_rate * battery.ElectricalParams.cell.('nominal_capacity_cell') * ones(round(timeFinal/timeStep), 1);
+                end
 
-                elseif isscalar(applied_current)
-                    if strcmpi(cycle_startmode, "charge") && applied_current > 0
-                        applied_current = applied_current * ones(timeFinal,1);
-                    elseif strcmpi(cycle_startmode, "discharge") && applied_current < 0
-                        applied_current = applied_current * ones(timeFinal,1);
-                    end
+            elseif isnan(applied_current)
+                if isnan(C_rate)
+                    error('Input current or C-rate must be provided.');
+                end
+                if ~isfield(battery.ElectricalParams.cell, 'nominal_capacity_cell')
+                    error('Nominal capacity required for C-rate calculation.');
+                end
+                if strcmpi(cycle_startmode, "charge") && ~isnan(C_rate)
+                    applied_current = C_rate * battery.ElectricalParams.cell.('nominal_capacity_cell') * ones(round(timeFinal/timeStep), 1);
+                elseif strcmpi(cycle_startmode, "discharge") && ~isnan(C_rate)
+                    applied_current = -C_rate * battery.ElectricalParams.cell.('nominal_capacity_cell') * ones(round(timeFinal/timeStep), 1);
+                end
+
+            elseif isvector(applied_current) && ~isscalar(applied_current)
+                applied_current = applied_current;
+
+            elseif isscalar(applied_current)
+                if strcmpi(cycle_startmode, "charge") && applied_current > 0
+                    applied_current = applied_current * ones(timeFinal,1);
+                elseif strcmpi(cycle_startmode, "discharge") && applied_current < 0
+                    applied_current = applied_current * ones(timeFinal,1);
                 end
             end
         end
